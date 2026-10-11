@@ -5,15 +5,42 @@ Where the pack is, what is settled, and what is next. Updated after every task.
 Started 2026-10-11 on HeliSim Core `d7ed678` (1.3.0.0). Built from the Bo 105 pack
 (`E:\bmkhs_bo105`, `94a97c2`), following Core's `docs/AIRCRAFT_GUIDE.md`.
 
-This update builds the pack AND tandem rotor control in Core.
+This update builds the pack AND tandem rotor control in Core. Every Core change goes on Core's
+`release/1.4.0` branch (HeliSim 1.4.0.0), published.
+
+Repo: https://github.com/BradMick/BradMicks-HeliSim-MH47G (public, `master`). First commit
+`8b4cd95` - tasks 1 and 3.
 
 ## Where it is
 
 | # | Work | State |
 |---|---|---|
-| 1 | Pack scaffold from the Bo 105, renamed, Bo 105 values as `TODO(MH47G)` placeholders | **Done** 2026-10-11 - `hemtt check` clean, not committed |
+| 1 | Pack scaffold from the Bo 105, renamed, Bo 105 values as `TODO(MH47G)` placeholders | **Done** 2026-10-11 - `8b4cd95` |
 | 2 | Tandem rotor control in Core - design | **Open** - waiting on the two questions below |
-| 3 | Fuselage and wings from the MH-47G's `fm.p3d` (`fm_generateAeroSurfacePoints.py`) | **Done** 2026-10-11 - written, `hemtt check` clean, not committed |
+| 3 | Fuselage and wings from the MH-47G's `fm.p3d` (`fm_generateAeroSurfacePoints.py`) | **Done** 2026-10-11 - `8b4cd95` |
+| 4 | The Bo 105's dev tools made Core's, in Core | **Done** 2026-10-11 - Core `57b888d` on `release/1.4.0` |
+| 5 | Place the fuselage on the model - it sits below it in game (screenshot 2026-10-11) | **Next** - nudge it in game |
+
+### Task 5 - placing the fuselage
+
+In game (FM debugging on) the fuselage quads sit below the MH-47G. The extents cannot say whether
+it is turned as well: `fuselageFront` is one plane at forward 0, `fuselageTop`/`Side` run -8.40 to
+7.44 forward. Sit in it, paste Core's `tools/fm_nudge.sqf` into the debug console (LOCAL EXEC),
+move "Fuselage + wings" onto the model, Numpad 5 copies the generator command. The current files
+carry no placement line - regenerate once with the full placement (`--forward/--down/--right`,
+`--turn` if it is facing aft), `--add` after that.
+
+### Task 4 - the tools (Core `release/1.4.0`, `57b888d`)
+
+- `python/tools/fm_generateAeroSurfacePoints.py`: `--turn`, `--forward/--down/--right`, `--add`;
+  placement on line 2 of both files. Bo 105's panels regenerate identically with
+  `--turn --forward 0.300 --down 0.650`. Also takes triangles (task 3).
+- `tools/fm_nudge.sqf`, `tools/seats.sqf`, `tools/dump.sqf` (finds the base class from the aircraft
+  you sit in - must be in it now). `python/dev/airflow_trim.py` (chart file, `--tot`, `--rotor-tq`,
+  `--bc`, `--cg`): Bo 105 output byte-identical to the old script.
+- Bo 105 pack: the five tool copies deleted, `docs/BO105_FM.md` points at Core, the OGE chart moved
+  to `tools/bo105_oge_chart.txt`. NOT committed.
+- Not in Core's release file list (`.hemtt/project.toml` `[files]`) - shipping them is open.
 
 ### Task 3 - fm.p3d
 
@@ -22,7 +49,7 @@ This update builds the pack AND tandem rotor control in Core.
   placeholder stabiliser and fins are gone with the regeneration).
 - First build: `fuselageTop07` held a duplicate face - fixed in the model.
 - `fuselageFront06/09/16/19` are triangles (the engine fronts). User: "a quad can also be a
-  triangle with 1 duplicated point." Core change, NOT committed: `python/tools/fm_generateAeroSurfacePoints.py`
+  triangle with 1 duplicated point." Core change (in `57b888d`): `python/tools/fm_generateAeroSurfacePoints.py`
   takes a 3-sided face as a quad with its last corner repeated; `docs/AIRCRAFT_GUIDE.md` (step 2
   and the error table) says so. Checked first: Core's panel normal is the diagonals' cross product
   and `fn_mathGetArea` (Brahmagupta) becomes Heron's with a zero edge - both exact for a triangle.
