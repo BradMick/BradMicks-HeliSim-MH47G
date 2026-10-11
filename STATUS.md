@@ -40,7 +40,11 @@ carry no placement line - regenerate once with the full placement (`--forward/--
   `--bc`, `--cg`): Bo 105 output byte-identical to the old script.
 - Bo 105 pack: the five tool copies deleted, `docs/BO105_FM.md` points at Core, the OGE chart moved
   to `tools/bo105_oge_chart.txt`. NOT committed.
-- Not in Core's release file list (`.hemtt/project.toml` `[files]`) - shipping them is open.
+- They ship (user): all four added to Core's release file list (`.hemtt/project.toml` `[files]`).
+- Bo 105 changes pushed to its `master`, `7509ecd`.
+
+**Paused 2026-10-11** - user moving to another computer. Waiting on the user: the two tandem
+questions (below) and the nudge result for task 5.
 
 ### Task 3 - fm.p3d
 
