@@ -1,171 +1,239 @@
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Rotors - Simple //////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////
-//TODO(MH47G): the Bo 105's main and tail rotor as a placeholder - the tandem goes here.
-//A rotor is a hub at a position turning blades of a given size, so its geometry, its blade
-//and what it does with the controls are defined together here. Core reads numSimpleRotors
-//and loops; nothing downstream indexes by rotor NUMBER.
+//AIRCRAFT
+//  controlScheme   - how the controls reach the rotors: "conventional" (the default) or "tandem".
+//                    TANDEM: lateral cyclic and collective as conventional; fore/aft cyclic moves
+//                    lift from one rotor to the other (tandemPitchLiftCoef); pedal is lateral
+//                    cyclic on each rotor, opposite ways (tandemYawLiftCoef).
+//                    Neither moves collective, so neither moves torque.
+//  numSimpleRotors - how many SimpleRotorNN classes follow.
+//  nrLimits[]      - Nr {normal low, normal high, high rotor, maximum}.
 //
-//The simple model works four fixed blade positions and scales by blade count, so the lift
-//and drag tables carry what the rotor does rather than deriving it per blade element.
+//EVERY ROTOR
+//  IDENTITY   type         "main" or "tail" - what the rotor IS.
+//             direction    "ccw" or "cw", seen from above.
+//             damageRole   the hitpoint role that destroys it; none - it cannot be destroyed.
+//  PLACEMENT  pivot[]      {right, forward, up} m in Arma's model frame - Object Builder less
+//                          boundingCenter: a point from fm.p3d, placed, less boundingCenter.
+//             rotation[]   disc {pitch, roll, yaw} deg - the mast's lean.
+//             mastLength   m along the disc's up axis, pivot to hub.
+//  DRIVE      gearRatio    rotor to engine shaft - the transmission model shares it.
+//             torqueTau    s, the torque filter.
+//  BLADE      numBlades, bladeRadius (m), bladeChord (m), bladeMass (kg, one blade).
+//  AERO       coneAngle    deg at full collective - the tips lift, the thrust moves inboard.
+//             flapBackRollMax / flapBackPitchMax - deg at an advance ratio of 1.0, applied as
+//                          blade flap: the disc tilts back as speed builds.
+//             gndEffValue  thrust multiplier on the deck, back to 1.0 by one diameter up.
+//             reacTqScalar the tangential drag that yaws the airframe; the transmission still
+//                          feels all of it.
+//  TABLES     liftCoefTable / dragCoefTable - rows are the control that loads the rotor
+//                          (collective for a main, pedal for a tail), columns airspeed in m/s.
+//                          The drag table is what the transmission feels.
+//             controlMap[] optional - shapes the control between the table's rows.
 //
-//  type         - "main" or "tail". What the rotor IS, so Core never assumes rotor 0 is
-//                 the main one.
-//  direction    - "ccw" or "cw", seen from above.
-//  numBlades    - the four modelled positions are scaled to this.
-//  pivot[]      - hub position, {lateral, longitudinal, vertical} in m,
-//                 right-positive / nose-positive / up-positive
-//  rotation[]   - disc orientation, {pitch, roll, yaw} in deg
-//  mastLength   - m along the disc's own up axis, from pivot to hub
-//  gearRatio    - rotor to engine shaft; shared with the transmission model
-//  torqueTau    - s, torque filter time constant
-//  damageRole   - the hitpoint role that destroys this rotor. A rotor that declares none
-//                 cannot be destroyed.
+//MAIN ONLY
+//  autoTorque              driving torque per m/s of descent in autorotation.
+//  LATERAL CYCLIC (roll)   rollFlapMin/Mid/Max - disc tilt, deg, from the centred stick;
+//                          rollLiftCoef - the blades' lift change around the disc. Blade pitch
+//                          and disc tilt together, as a rotor does.
 //
-//  BLADE
-//  bladeRadius  - m
-//  bladeChord   - m
-//  bladeMass    - kg, one blade
+//CONVENTIONAL ONLY
+//  FORE/AFT CYCLIC (pitch) pitchFlapMin/Mid/Max, pitchLiftCoef - as lateral. A tandem does not
+//                          tilt its discs fore and aft; it pitches with tandemPitchLiftCoef.
 //
-//  DISC TILT - min / mid / max in deg, interpolated from the centred stick. A rotor whose
-//  disc does not tilt declares zeroes.
+//TANDEM ONLY
+//  position                "front" or "rear" - declared, not inferred. It sets which way the
+//                          two tandem terms act on this rotor.
+//  tandemPitchLiftCoef     lift coefficient added to every blade at full fore/aft stick: forward
+//                          stick takes it off the front rotor and puts it on the rear.
+//  tandemYawLiftCoef       pedal's blade lift change around the disc, as rollLiftCoef is lateral
+//                          cyclic's - pedal is lateral cyclic on each rotor, opposite ways, and
+//                          tilts the discs through rollFlap.
 //
-//  coneAngle    - deg at full collective. Coning lifts the tips, so the thrust position
-//                 moves inboard and the disc carries a vertical arm.
-//  flapBackRollMax / flapBackPitchMax - deg at an advance ratio of 1.0. The advancing blade
-//                 lifts more than the retreating one, so the disc tilts as speed builds.
-//                 Applied as blade flap, which moves both the thrust position and its
-//                 direction - it is NOT also applied to the lift coefficient.
-//  rollLiftCoef / pitchLiftCoef - the cyclic lift coefficient, independent of the
-//                 collective's. This is what makes the fore/aft and left/right blades carry
-//                 different lift, so the pitch and roll moments come out of real forces at
-//                 real positions rather than being applied as a torque.
-//  gndEffValue  - thrust multiplier on the deck, fading to 1.0 by one rotor diameter up.
-//                 A rotor that does not sit in ground effect declares 1.0.
-//  reacTqScalar - scales the tangential blade drag that produces the yaw reaction. The same
-//                 drag drives the transmission, which this does not touch.
+//  lctSchedule[]           LCT - the mast's tilt, deg, + forward (extend): rows airspeed kt, columns
+//                          pressure altitude ft, header {"PA", ...}. Casual and realistic alike.
+//  lctTime                 s for the LCT actuator's full stroke - it moves to the schedule at that rate.
 //
-//  liftCoefTable / dragCoefTable - rows are the control axis that loads this rotor
-//  (collective for a main, pedal for a tail), columns are the airspeeds in the header row,
-//  m/s. The drag table carries induced and profile together, and its airspeed columns carry
-//  how they vary with speed - that is what the transmission feels.
+//TAIL ONLY (a conventional tail rotor) - pedal is its table key; its disc does not tilt, so its
+//cyclic fields are 0, and it usually declares a controlMap for the pedal's asymmetry.
 
+    controlScheme   = "tandem";
     numSimpleRotors = 2;
-    //Rotor limits, Nr - {normal low, normal high, high rotor, maximum}; below and above normal is transient.
-    nrLimits[] = {0.98, 1.02, 1.05, 1.10};
+    nrLimits[]      = {0.98, 1.02, 1.05, 1.10};
+
     class SimpleRotors {
         class SimpleRotor01 {
+            //IDENTITY
             type             = "main";
+            position         = "front";   //TANDEM ONLY
             direction        = "ccw";
             damageRole       = "mainRotor";
-            numBlades        = 4;
-            pivot[]          = {0.000, 0.810, 0.170};
-            rotation[]       = {0.00, 0.00, 0.00};
-            mastLength       = 0.66;      //m
-            gearRatio        = 14.151;    //6000 / 424 rpm
+            //PLACEMENT
+            pivot[]          = {-0.003, 4.213, 1.191};
+            rotation[]       = {-5.43, 0.00, 0.00};
+            mastLength       = 0.290;     //m
+            //DRIVE
+            gearRatio        = 66.960;
             torqueTau        = 0.10;      //s
-
-            bladeRadius      = 4.920;     //m
-            bladeChord       = 0.450;     //m
-            bladeMass        = 25.000;    //kg
-
-            pitchFlapMin     = -10.0;     //deg
-            pitchFlapMid     =   0.0;
-            pitchFlapMax     =  20.0;
-            rollFlapMin      = -10.5;
-            rollFlapMid      =   0.0;
-            rollFlapMax      =   7.0;
-
-            coneAngle        = 12.0;  //deg at full collective
-            flapBackRollMax  = 15.0;  //deg per unit advance ratio
-            flapBackPitchMax =  9.0;  //deg per unit advance ratio
-            rollLiftCoef     = 0.166;
-            pitchLiftCoef    = 0.315;
+            //BLADE
+            numBlades        = 3;
+            bladeRadius      = 9.145;     //m
+            bladeChord       = 0.641;     //m
+            bladeMass        = 159.000;   //kg
+            //AERO
+            coneAngle        = 12.0;      //deg at full collective
+            flapBackRollMax  = 15.0;      //deg per unit advance ratio
+            flapBackPitchMax = 9.0;
             gndEffValue      = 1.225;
             reacTqScalar     = 0.50;
+            //MAIN ONLY
             autoTorque       = 80.0;
-
-            //rotortables.py --cg 0 1.096 -0.218 --hover 1950:63.6 2460:86 3179:120 --me 60:38.2 --mr 118.4 --cruise-pitch -5
-            //Full-down collective falls from the hover's idle torque to 1/36 of it by 60 kt, so power-on
-            //autos overrun the engines.
+            rollFlapMin      = -12.0;     //deg
+            rollFlapMid      =   0.0;
+            rollFlapMax      =  12.0;
+            rollLiftCoef     = 0.102;
+            //CONVENTIONAL ONLY
+            pitchFlapMin     = 0.0;
+            pitchFlapMid     = 0.0;
+            pitchFlapMax     = 0.0;
+            pitchLiftCoef    = 0.0;
+            //TANDEM ONLY
+            tandemPitchLiftCoef = 0.686;
+            tandemYawLiftCoef   = 1.8;
+            lctTime             = 12.0;    //s
+            lctSchedule[] = {
+                        {"PA", 0, 5000, 10000, 15000, 20000}
+                        ,{0, -1.200, -1.200, -0.200, 0.650, 1.350}
+                        ,{40, -0.080, 1.080, 2.100, 2.950, 3.650}
+                        ,{45, 0.055, 1.215, 2.235, 3.085, 3.785}
+                        ,{50, 0.190, 1.350, 2.370, 3.220, 3.920}
+                        ,{55, 0.325, 1.485, 2.505, 3.355, 4.000}
+                        ,{60, 0.460, 1.620, 2.640, 3.490, 4.000}
+                        ,{65, 0.680, 1.840, 2.860, 3.710, 4.000}
+                        ,{70, 0.900, 2.060, 3.080, 3.930, 4.000}
+                        ,{75, 1.170, 2.330, 3.350, 4.000, 4.000}
+                        ,{80, 1.440, 2.600, 3.620, 4.000, 4.000}
+                        ,{85, 1.755, 2.915, 3.935, 4.000, 4.000}
+                        ,{90, 2.070, 3.230, 4.000, 4.000, 4.000}
+                        ,{95, 2.440, 3.600, 4.000, 4.000, 4.000}
+                        ,{100, 2.810, 3.970, 4.000, 4.000, 4.000}
+                        ,{105, 2.775, 3.935, 4.000, 4.000, 4.000}
+                        ,{110, 2.740, 3.900, 4.000, 4.000, 4.000}
+                        ,{115, 2.775, 3.935, 4.000, 4.000, 4.000}
+                        ,{120, 2.810, 3.970, 4.000, 4.000, 4.000}
+                        ,{125, 2.920, 4.000, 4.000, 4.000, 4.000}
+                        ,{130, 3.030, 4.000, 4.000, 4.000, 4.000}
+                        ,{135, 3.225, 4.000, 4.000, 4.000, 4.000}
+                        ,{140, 3.420, 4.000, 4.000, 4.000, 4.000}
+                        ,{145, 3.725, 4.000, 4.000, 4.000, 4.000}
+                        ,{150, 4.000, 4.000, 4.000, 4.000, 4.000}
+                        };
+            //TABLES
             liftCoefTable[] = {
-                        {"A/S", 0.00, 4.54, 9.08, 13.62, 18.16, 22.70, 27.24, 30.87, 31.70, 35.87, 40.05, 44.22, 48.39, 52.56, 56.74, 60.91, 65.26, 69.61, 92.60}
-                        ,{0.000, 0.0231, 0.0248, 0.0277, 0.0306, 0.0330, 0.0340, 0.0352, 0.0354, 0.0355, 0.0360, 0.0356, 0.0344, 0.0331, 0.0314, 0.0299, 0.0282, 0.0262, 0.0253, 0.0207}
-                        ,{0.850, 0.2178, 0.2337, 0.2613, 0.2890, 0.3115, 0.3207, 0.3321, 0.3343, 0.3351, 0.3398, 0.3359, 0.3247, 0.3124, 0.2964, 0.2820, 0.2659, 0.2470, 0.2388, 0.1954}
-                        ,{0.900, 0.2084, 0.2237, 0.2500, 0.2766, 0.2981, 0.3069, 0.3179, 0.3199, 0.3207, 0.3252, 0.3214, 0.3107, 0.2990, 0.2837, 0.2699, 0.2545, 0.2364, 0.2285, 0.1870}
-                        ,{0.950, 0.1923, 0.2064, 0.2307, 0.2552, 0.2751, 0.2832, 0.2933, 0.2952, 0.2959, 0.3000, 0.2966, 0.2867, 0.2759, 0.2617, 0.2490, 0.2348, 0.2181, 0.2109, 0.1726}
-                        ,{1.000, 0.1668, 0.1790, 0.2001, 0.2214, 0.2386, 0.2457, 0.2544, 0.2561, 0.2567, 0.2603, 0.2573, 0.2487, 0.2393, 0.2271, 0.2160, 0.2037, 0.1892, 0.1829, 0.1497}
+                        {"A/S", 0.00, 5.14, 10.29, 15.43, 20.58, 25.72, 30.87, 36.01, 41.16, 46.30, 51.44, 56.59, 61.73, 66.88, 72.02, 77.17, 82.31, 92.60}
+                        ,{0.000, 0.0614, 0.0629, 0.0659, 0.0693, 0.0732, 0.0787, 0.0855, 0.0890, 0.0936, 0.0957, 0.0993, 0.1005, 0.1045, 0.1071, 0.1176, 0.1376, 0.2148, 0.3695}
+                        ,{0.850, 0.5792, 0.5937, 0.6218, 0.6539, 0.6905, 0.7420, 0.8066, 0.8394, 0.8826, 0.9025, 0.9365, 0.9477, 0.9857, 1.0101, 1.1095, 1.2978, 2.0267, 3.4860}
+                        ,{0.900, 0.5543, 0.5682, 0.5951, 0.6257, 0.6608, 0.7101, 0.7719, 0.8033, 0.8446, 0.8637, 0.8963, 0.9070, 0.9433, 0.9667, 1.0618, 1.2420, 1.9396, 3.3361}
+                        ,{0.950, 0.5114, 0.5242, 0.5491, 0.5774, 0.6097, 0.6552, 0.7123, 0.7412, 0.7793, 0.7969, 0.8270, 0.8369, 0.8704, 0.8920, 0.9797, 1.1460, 1.7896, 3.0781}
+                        ,{1.000, 0.4437, 0.4548, 0.4763, 0.5009, 0.5289, 0.5684, 0.6179, 0.6430, 0.6760, 0.6913, 0.7174, 0.7260, 0.7551, 0.7738, 0.8499, 0.9941, 1.5525, 2.6703}
                         };
             dragCoefTable[] = {
-                        {"A/S", 0.00, 4.54, 9.08, 13.62, 18.16, 22.70, 27.24, 30.87, 31.70, 35.87, 40.05, 44.22, 48.39, 52.56, 56.74, 60.91, 65.26, 69.61, 92.60}
-                        ,{0.000, 0.0037, 0.0021, 0.0011, 0.0007, 0.0005, 0.0003, 0.0002, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001}
-                        ,{0.476, 0.0156, 0.0154, 0.0152, 0.0150, 0.0148, 0.0148, 0.0148, 0.0148, 0.0148, 0.0148, 0.0148, 0.0148, 0.0148, 0.0148, 0.0148, 0.0148, 0.0152, 0.0156, 0.0156}
-                        ,{0.629, 0.0215, 0.0212, 0.0209, 0.0206, 0.0204, 0.0204, 0.0204, 0.0204, 0.0204, 0.0204, 0.0204, 0.0204, 0.0204, 0.0204, 0.0204, 0.0204, 0.0209, 0.0215, 0.0215}
-                        ,{0.850, 0.0302, 0.0299, 0.0294, 0.0289, 0.0287, 0.0287, 0.0287, 0.0287, 0.0287, 0.0287, 0.0287, 0.0287, 0.0287, 0.0287, 0.0287, 0.0287, 0.0295, 0.0302, 0.0302}
-                        ,{0.900, 0.0393, 0.0388, 0.0382, 0.0376, 0.0373, 0.0373, 0.0373, 0.0373, 0.0373, 0.0373, 0.0373, 0.0373, 0.0373, 0.0373, 0.0373, 0.0373, 0.0383, 0.0393, 0.0393}
-                        ,{0.950, 0.0544, 0.0538, 0.0529, 0.0521, 0.0517, 0.0517, 0.0517, 0.0517, 0.0517, 0.0517, 0.0517, 0.0517, 0.0517, 0.0517, 0.0517, 0.0517, 0.0530, 0.0544, 0.0544}
-                        ,{1.000, 0.0786, 0.0777, 0.0763, 0.0752, 0.0746, 0.0746, 0.0746, 0.0746, 0.0746, 0.0746, 0.0746, 0.0746, 0.0746, 0.0746, 0.0746, 0.0746, 0.0766, 0.0786, 0.0786}
+                        {"A/S", 0.00, 5.14, 10.29, 15.43, 20.58, 25.72, 30.87, 36.01, 41.16, 46.30, 51.44, 56.59, 61.73, 66.88, 72.02, 77.17, 82.31, 92.60}
+                        ,{0.000, 0.0130, 0.0065, 0.0032, 0.0022, 0.0011, 0.0007, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004}
+                        ,{0.389, 0.0424, 0.0421, 0.0415, 0.0410, 0.0404, 0.0403, 0.0403, 0.0403, 0.0403, 0.0403, 0.0403, 0.0403, 0.0403, 0.0403, 0.0403, 0.0406, 0.0424, 0.0424}
+                        ,{0.555, 0.0616, 0.0612, 0.0603, 0.0595, 0.0587, 0.0585, 0.0585, 0.0585, 0.0585, 0.0585, 0.0585, 0.0585, 0.0585, 0.0585, 0.0585, 0.0590, 0.0616, 0.0616}
+                        ,{0.850, 0.1033, 0.1026, 0.1012, 0.0998, 0.0984, 0.0981, 0.0981, 0.0981, 0.0981, 0.0981, 0.0981, 0.0981, 0.0981, 0.0981, 0.0981, 0.0990, 0.1033, 0.1033}
+                        ,{0.900, 0.1343, 0.1334, 0.1316, 0.1298, 0.1280, 0.1276, 0.1276, 0.1276, 0.1276, 0.1276, 0.1276, 0.1276, 0.1276, 0.1276, 0.1276, 0.1287, 0.1343, 0.1343}
+                        ,{0.950, 0.1859, 0.1847, 0.1822, 0.1797, 0.1772, 0.1766, 0.1766, 0.1766, 0.1766, 0.1766, 0.1766, 0.1766, 0.1766, 0.1766, 0.1766, 0.1782, 0.1859, 0.1859}
+                        ,{1.000, 0.2685, 0.2667, 0.2631, 0.2595, 0.2559, 0.2551, 0.2551, 0.2551, 0.2551, 0.2551, 0.2551, 0.2551, 0.2551, 0.2551, 0.2551, 0.2573, 0.2685, 0.2685}
                         };
         };
 
         class SimpleRotor02 {
-            type             = "tail";
-            direction        = "ccw";
+            //IDENTITY
+            type             = "main";
+            position         = "rear";   //TANDEM ONLY
+            direction        = "cw";
             damageRole       = "tailRotor";
-            numBlades        = 2;
-            pivot[]          = {-1.000, -5.177, 0.975};
-            rotation[]       = {0.00, -90.00,  0.000};
-            mastLength       = -0.56;     //m
-            gearRatio        = 2.704;     //6000 / 2219 rpm
+            //PLACEMENT
+            pivot[]          = {-0.003, -7.769, 2.237};
+            rotation[]       = {1.50, 0.00, 0.00};
+            mastLength       = 0.290;     //m
+            //DRIVE
+            gearRatio        = 66.960;
             torqueTau        = 0.10;      //s
-
-            bladeRadius      = 0.950;     //m
-            bladeChord       = 0.180;     //m
-            bladeMass        = 1.490;     //kg
-
-            //The tail disc does not tilt - pedal changes its pitch, not its plane.
+            //BLADE
+            numBlades        = 3;
+            bladeRadius      = 9.145;     //m
+            bladeChord       = 0.641;     //m
+            bladeMass        = 159.000;   //kg
+            //AERO
+            coneAngle        = 12.0;      //deg at full collective
+            flapBackRollMax  = 15.0;      //deg per unit advance ratio
+            flapBackPitchMax = 9.0;
+            gndEffValue      = 1.225;
+            reacTqScalar     = 0.50;
+            //MAIN ONLY
+            autoTorque       = 80.0;
+            rollFlapMin      = -12.0;     //deg
+            rollFlapMid      =   0.0;
+            rollFlapMax      =  12.0;
+            rollLiftCoef     = 0.102;
+            //CONVENTIONAL ONLY
             pitchFlapMin     = 0.0;
             pitchFlapMid     = 0.0;
             pitchFlapMax     = 0.0;
-            rollFlapMin      = 0.0;
-            rollFlapMid      = 0.0;
-            rollFlapMax      = 0.0;
-
-            coneAngle        = 0.0;
-            flapBackRollMax  = 0.0;
-            flapBackPitchMax = 0.0;
-            rollLiftCoef     = 0.0;
             pitchLiftCoef    = 0.0;
-            gndEffValue      = 1.0;
-            reacTqScalar     = 0.25;
-            autoTorque       = 0.0;
-
-            //Pedal through controlMap is the table key; rows are left / mid / right. The main
-            //rotor turns counter-clockwise, so left pedal carries the torque.
-            controlMap[] = {
-                {-1.00, -1.0000},
-                {-0.75, -0.8875},
-                {-0.50, -0.6250},
-                {-0.25, -0.2700},
-                { 0.00,  0.0000},
-                { 0.25,  0.3900},
-                { 0.50,  0.7000},
-                { 0.75,  0.8900},
-                { 1.00,  1.0000}
-            };
-            //-----------Pedal----0.00---10.29---20.58---36.01---46.30---51.44---61.73---66.88---72.02
-            liftCoefTable[] = {
-                         {"A/S", 0.00,  10.29,  20.58,  36.01,  46.30,  51.44,  61.73,  66.88,  72.02}
-                        ,{-1.00, -1.1648, -1.2803, -1.3821, -1.5163, -1.5966, -1.6346, -1.7071, -1.7415, -1.7750}
-                        ,{ 0.00, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000}
-                        ,{ 1.00,  1.1648,  1.2803,  1.3821,  1.5163,  1.5966,  1.6346,  1.7071,  1.7415,  1.7750}
+            //TANDEM ONLY
+            tandemPitchLiftCoef = 0.686;
+            tandemYawLiftCoef   = 1.8;
+            lctTime             = 12.0;    //s
+            lctSchedule[] = {
+                        {"PA", 0, 5000, 10000, 15000, 20000}
+                        ,{0, -3.250, -3.250, -2.700, -1.850, -1.150}
+                        ,{40, -2.610, -1.440, -0.400, 0.450, 1.150}
+                        ,{45, -2.360, -1.190, -0.150, 0.700, 1.400}
+                        ,{50, -2.110, -0.940, 0.100, 0.950, 1.650}
+                        ,{55, -1.860, -0.690, 0.350, 1.200, 1.900}
+                        ,{60, -1.610, -0.440, 0.600, 1.450, 2.150}
+                        ,{65, -1.275, -0.105, 0.935, 1.785, 2.485}
+                        ,{70, -0.940, 0.230, 1.270, 2.120, 2.820}
+                        ,{75, -0.555, 0.615, 1.655, 2.505, 3.205}
+                        ,{80, -0.170, 1.000, 2.040, 2.890, 3.590}
+                        ,{85, 0.260, 1.430, 2.470, 3.320, 4.000}
+                        ,{90, 0.690, 1.860, 2.900, 3.750, 4.000}
+                        ,{95, 1.175, 2.345, 3.385, 4.000, 4.000}
+                        ,{100, 1.660, 2.830, 3.870, 4.000, 4.000}
+                        ,{105, 1.740, 2.910, 3.950, 4.000, 4.000}
+                        ,{110, 1.820, 2.990, 4.000, 4.000, 4.000}
+                        ,{115, 1.970, 3.140, 4.000, 4.000, 4.000}
+                        ,{120, 2.120, 3.290, 4.000, 4.000, 4.000}
+                        ,{125, 2.345, 3.515, 4.000, 4.000, 4.000}
+                        ,{130, 2.570, 3.740, 4.000, 4.000, 4.000}
+                        ,{135, 2.880, 4.000, 4.000, 4.000, 4.000}
+                        ,{140, 3.190, 4.000, 4.000, 4.000, 4.000}
+                        ,{145, 3.610, 4.000, 4.000, 4.000, 4.000}
+                        ,{150, 4.000, 4.000, 4.000, 4.000, 4.000}
                         };
-            //-----------Pedal----0.00---10.29---20.58---36.01---46.30---51.44---61.73---66.88---72.02
+            //TABLES
+            liftCoefTable[] = {
+                        {"A/S", 0.00, 5.14, 10.29, 15.43, 20.58, 25.72, 30.87, 36.01, 41.16, 46.30, 51.44, 56.59, 61.73, 66.88, 72.02, 77.17, 82.31, 92.60}
+                        ,{0.000, 0.0614, 0.0629, 0.0659, 0.0693, 0.0732, 0.0787, 0.0855, 0.0890, 0.0936, 0.0957, 0.0993, 0.1005, 0.1045, 0.1071, 0.1176, 0.1376, 0.2148, 0.3695}
+                        ,{0.850, 0.5792, 0.5937, 0.6218, 0.6539, 0.6905, 0.7420, 0.8066, 0.8394, 0.8826, 0.9025, 0.9365, 0.9477, 0.9857, 1.0101, 1.1095, 1.2978, 2.0267, 3.4860}
+                        ,{0.900, 0.5543, 0.5682, 0.5951, 0.6257, 0.6608, 0.7101, 0.7719, 0.8033, 0.8446, 0.8637, 0.8963, 0.9070, 0.9433, 0.9667, 1.0618, 1.2420, 1.9396, 3.3361}
+                        ,{0.950, 0.5114, 0.5242, 0.5491, 0.5774, 0.6097, 0.6552, 0.7123, 0.7412, 0.7793, 0.7969, 0.8270, 0.8369, 0.8704, 0.8920, 0.9797, 1.1460, 1.7896, 3.0781}
+                        ,{1.000, 0.4437, 0.4548, 0.4763, 0.5009, 0.5289, 0.5684, 0.6179, 0.6430, 0.6760, 0.6913, 0.7174, 0.7260, 0.7551, 0.7738, 0.8499, 0.9941, 1.5525, 2.6703}
+                        };
             dragCoefTable[] = {
-                         {"A/S", 0.00,  10.29,  20.58,  36.01,  46.30,  51.44,  61.73,  66.88,  72.02}
-                        ,{-1.00, 0.2519, 0.2519, 0.2519, 0.2519, 0.2519, 0.2519, 0.2519, 0.2519, 0.2519}
-                        ,{ 0.00, 0.0273, 0.0273, 0.0273, 0.0273, 0.0273, 0.0273, 0.0273, 0.0273, 0.0273}
-                        ,{ 1.00, 0.0084, 0.0084, 0.0084, 0.0084, 0.0084, 0.0084, 0.0084, 0.0084, 0.0084}
+                        {"A/S", 0.00, 5.14, 10.29, 15.43, 20.58, 25.72, 30.87, 36.01, 41.16, 46.30, 51.44, 56.59, 61.73, 66.88, 72.02, 77.17, 82.31, 92.60}
+                        ,{0.000, 0.0130, 0.0065, 0.0032, 0.0022, 0.0011, 0.0007, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004}
+                        ,{0.389, 0.0424, 0.0421, 0.0415, 0.0410, 0.0404, 0.0403, 0.0403, 0.0403, 0.0403, 0.0403, 0.0403, 0.0403, 0.0403, 0.0403, 0.0403, 0.0406, 0.0424, 0.0424}
+                        ,{0.555, 0.0616, 0.0612, 0.0603, 0.0595, 0.0587, 0.0585, 0.0585, 0.0585, 0.0585, 0.0585, 0.0585, 0.0585, 0.0585, 0.0585, 0.0585, 0.0590, 0.0616, 0.0616}
+                        ,{0.850, 0.1033, 0.1026, 0.1012, 0.0998, 0.0984, 0.0981, 0.0981, 0.0981, 0.0981, 0.0981, 0.0981, 0.0981, 0.0981, 0.0981, 0.0981, 0.0990, 0.1033, 0.1033}
+                        ,{0.900, 0.1343, 0.1334, 0.1316, 0.1298, 0.1280, 0.1276, 0.1276, 0.1276, 0.1276, 0.1276, 0.1276, 0.1276, 0.1276, 0.1276, 0.1276, 0.1287, 0.1343, 0.1343}
+                        ,{0.950, 0.1859, 0.1847, 0.1822, 0.1797, 0.1772, 0.1766, 0.1766, 0.1766, 0.1766, 0.1766, 0.1766, 0.1766, 0.1766, 0.1766, 0.1766, 0.1782, 0.1859, 0.1859}
+                        ,{1.000, 0.2685, 0.2667, 0.2631, 0.2595, 0.2559, 0.2551, 0.2551, 0.2551, 0.2551, 0.2551, 0.2551, 0.2551, 0.2551, 0.2551, 0.2551, 0.2573, 0.2685, 0.2685}
                         };
         };
     };

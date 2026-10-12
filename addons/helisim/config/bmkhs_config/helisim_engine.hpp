@@ -6,7 +6,10 @@
     /////////////////////////////////////////////////////////////////////////////////////////////
     //numEngines is declared at the top of bmkhs_mh47g_config.hpp, beside useSystems - it is
     //the airframe's count, not an engine's property. No hitpoints here, so it IS the count.
-    //TODO(MH47G): the Bo 105's Allison 250-C20B as a placeholder - the MH-47G's engine goes here.
+    //Honeywell T55-GA-714A. designRpm and powerKw are its own (4168 SHP continuous at 15066 rpm).
+    //TODO(MH47G): everything else is still the Bo 105's Allison 250-C20B, ROUGHLY RESCALED for a
+    //first flight - massFlow and maxFuelFlow x9.93 (3108 / 313 kW), so the same Ng, TGT and fuel/air
+    //ratio give 9.93x the power. Spool dynamics and shaft torque are normalised and carry over.
     class Engines {
         class Engine01 {
             name            = "eng01";
@@ -15,10 +18,10 @@
 
             //Whole-assembly properties - not owned by any one section.
             engineType  = "turboShaftEngine";   //dispatches to bmkhs_fnc_turboShaftEngine
-            designRpm   = 6000;                 //100% Np, the shaft reference
+            designRpm   = 15066;                //100% Np, the shaft reference
             npFly       = 1.00;                 //governed Np in FLY, as a fraction of designRpm
-            maxFuelFlow = 0.0161;               //kg/s per unit of fuel - the gauge boundary
-            powerKw     = 313;                  //100% torque - the torque reference, refTq
+            maxFuelFlow = 0.1599;               //kg/s per unit of fuel - the gauge boundary. ROUGH RESCALE: Allison x9.93
+            powerKw     = 3108;                 //100% torque - the torque reference, refTq (1970 Nm)
 
             //Hard shutdowns - both CUT FUEL rather than restricting it.
             maxNg = 1.10;                       //mechanical fly weights
@@ -37,8 +40,8 @@
             //Compressor - stations 2 -> 3.
             class Compressor {
                 pressureRatio = 7.2;     //at Ng 1.0
-                massFlow      = 1.56;    //kg/s at Ng 1.0, standard day
-                inletDiameter = 0.396;   //m - for inlet losses, not yet modelled
+                massFlow      = 15.49;   //kg/s at Ng 1.0, standard day. ROUGH RESCALE: Allison x9.93
+                inletDiameter = 1.248;   //m - for inlet losses, not yet modelled. Allison x sqrt(9.93)
                 ramRecovery   = 1.0;     //share of the ram pressure rise the inlet keeps
 
                 //Spooling down only - an unfired compressor is pure load, and that stops it.

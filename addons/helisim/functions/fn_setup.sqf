@@ -19,5 +19,6 @@ if (_heli getVariable ["bmkhs_initialised", false]) exitWith {};
 [_heli] call bmkhs_fnc_coreInit;
 [_heli, configOf _heli >> "BMKHS_HeliSim"] call bmkhs_fnc_coreConfig;
 
-//The main tank keeps the supply tank full.
-_heli setVariable ["bmkhs_xferMode", "SUPPLY"];
+//No main-to-main transfer; the aux tanks feed their own side's main.
+_heli setVariable ["bmkhs_xferMode", "OFF"];
+{ _heli setVariable [_x + "XferOn", true] } forEach ["bmkhs_leftFwdAuxTank", "bmkhs_rightFwdAuxTank", "bmkhs_leftAftAuxTank", "bmkhs_rightAftAuxTank"];
