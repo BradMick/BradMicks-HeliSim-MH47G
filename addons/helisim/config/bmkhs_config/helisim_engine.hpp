@@ -2,160 +2,138 @@
 // Engine ////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////
-    // Engines - the gas turbine model  /////////////////////////////////////////////////////////
+    // Engines - T55-GA-714A  ///////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////
-    //numEngines is declared at the top of bmkhs_mh47g_config.hpp, beside useSystems - it is
-    //the airframe's count, not an engine's property. No hitpoints here, so it IS the count.
-    //Honeywell T55-GA-714A. designRpm and powerKw are its own (4168 SHP continuous at 15066 rpm).
-    //TODO(MH47G): everything else is still the Bo 105's Allison 250-C20B, ROUGHLY RESCALED for a
-    //first flight - massFlow and maxFuelFlow x9.93 (3108 / 313 kW), so the same Ng, TGT and fuel/air
-    //ratio give 9.93x the power. Spool dynamics and shaft torque are normalised and carry over.
     class Engines {
         class Engine01 {
             name            = "eng01";
             damageRole      = "engines";
             damageRoleIndex = 0;
 
-            //Whole-assembly properties - not owned by any one section.
-            engineType  = "turboShaftEngine";   //dispatches to bmkhs_fnc_turboShaftEngine
-            designRpm   = 15066;                //100% Np, the shaft reference
-            npFly       = 1.00;                 //governed Np in FLY, as a fraction of designRpm
-            maxFuelFlow = 0.1599;               //kg/s per unit of fuel - the gauge boundary. ROUGH RESCALE: Allison x9.93
-            powerKw     = 3108;                 //100% torque - the torque reference, refTq (1970 Nm)
+            //Whole assembly
+            engineType  = "turboShaftEngine";   //engine model
+            designRpm   = 15066;                //100% Np
+            npFly       = 1.00;                 //governed Np in FLY
+            maxFuelFlow = 0.1599;               //kg/s per unit of fuel
+            powerKw     = 3108;                 //100% torque
 
-            //Hard shutdowns - both CUT FUEL rather than restricting it.
-            maxNg = 1.10;                       //mechanical fly weights
-            maxNp = 1.175;                      //engine overspeed
+            //Overspeed
+            maxNg        = 1.12;                //spool ceiling
+            ngOvrspdProt = 0;                   //Ng overspeed trip, 0 = none
+            npOvrspdProt = 1.148;               //Np overspeed trip
 
-            //Engine Limits
-            oilPsiLimits[] = {0.385, 1.000};    //3.5 / 9.1 kp/cm2
-            ngMin          = 0.63;
-            ngLimits[]     = {{1.05, 15, 10}, {1.06, 0, 20}};
-            npLimits[]     = {{1.02, 15, 10}, {1.05, 0, 20}};
-            tqLimits[]     = {{0.86, 0, 5}};
-            tgtLimits[]    = {{779, 300, 1000}, {810, 6, 2000}, {843, 0, 2000}};
-            tqLimitsSe[]   = {{0.95, 0, 5}};
-            tgtLimitsSe[]  = {{779, 1800, 1000}, {810, 6, 2000}, {843, 0, 2000}};
+            //Limits - {limit, seconds above it, damage divisor}
+            oilPsiLimits[] = {0.389, 1.000};    //normal range, fraction of full scale
+            ngMin          = 0.50;              //ground idle minimum
+            ngLimits[]     = {{1.11, 0, 20}};
+            npLimits[]     = {{1.115, 0, 20}};
+            tqLimits[]     = {{1.00, 0, 5}};
+            tgtLimits[]    = {{816, 1800, 1000}, {854, 600, 2000}, {899, 150, 2000}, {932, 12, 2000}, {943, 0, 2000}};
+            tqLimitsSe[]   = {{1.23, 0, 5}};
+            tgtLimitsSe[]  = {{816, 1800, 1000}, {854, 600, 2000}, {899, 150, 2000}, {932, 12, 2000}, {943, 0, 2000}};
 
-            //Compressor - stations 2 -> 3.
+            //Compressor
             class Compressor {
-                pressureRatio = 7.2;     //at Ng 1.0
-                massFlow      = 15.49;   //kg/s at Ng 1.0, standard day. ROUGH RESCALE: Allison x9.93
-                inletDiameter = 1.248;   //m - for inlet losses, not yet modelled. Allison x sqrt(9.93)
-                ramRecovery   = 1.0;     //share of the ram pressure rise the inlet keeps
+                pressureRatio = 9.32;    //at Ng 1.0
+                massFlow      = 13.199;  //kg/s at Ng 1.0, standard day
+                inletDiameter = 1.248;   //m
+                ramRecovery   = 1.0;     //share of ram pressure rise kept
 
-                //Spooling down only - an unfired compressor is pure load, and that stops it.
-                compDrag      = 3.4;     //as compDrag * ng^2
-                compDragFloor = 0.10;    //finishes the stop - ng^2 alone only asymptotes
+                compDrag      = 3.4;     //spool-down drag, compDrag * ng^2
+                compDragFloor = 0.10;    //minimum spool-down drag
 
-                //Airflow trim by FAT, {FAT, multiplier} - the OGE chart's engine-limited cells. 15 C held.
+                //Airflow multiplier by FAT, {FAT, multiplier}
                 airflowTable[] = {
-                     {-40, 1.1400}
-                    ,{-30, 1.0930}
-                    ,{-20, 1.0460}
-                    ,{-10, 1.0090}
-                    ,{  0, 0.9710}
-                    ,{ 10, 0.9900}
-                    ,{ 15, 1.0000}
-                    ,{ 20, 1.1360}
-                    ,{ 30, 1.2120}
-                    ,{ 40, 1.2880}
+                     {-40, 1.1210}
+                    ,{-30, 1.1229}
+                    ,{-20, 1.1169}
+                    ,{-10, 1.1116}
+                    ,{  0, 1.0989}
+                    ,{ 10, 1.0025}
+                    ,{ 15, 1.0072}
+                    ,{ 20, 1.0098}
+                    ,{ 30, 1.0063}
+                    ,{ 40, 0.9928}
                 };
 
-                //Compressor map - compressor_map.py: MCP 15 C 0.950 779 0.86, TOP 15 C 0.968 810 0.95.
+                //{Ng / maxNg, pressure ratio, airflow, efficiency, compressor turbine expansion}
                 compressorMap[] = {
-                     {0.0000, 0.0588, 0.0000, 0.544, 0.2924}
-                    ,{0.0500, 0.0595, 0.0116, 0.544, 0.2924}
-                    ,{0.1000, 0.0618, 0.0329, 0.544, 0.2924}
-                    ,{0.1500, 0.0656, 0.0604, 0.544, 0.2924}
-                    ,{0.2000, 0.0712, 0.0930, 0.544, 0.2924}
-                    ,{0.2500, 0.0789, 0.1300, 0.544, 0.2924}
-                    ,{0.3000, 0.0891, 0.1709, 0.544, 0.2924}
-                    ,{0.3500, 0.1024, 0.2153, 0.544, 0.2924}
-                    ,{0.4000, 0.1194, 0.2631, 0.544, 0.2924}
-                    ,{0.4500, 0.1410, 0.3139, 0.544, 0.2924}
-                    ,{0.5000, 0.1683, 0.3676, 0.544, 0.2924}
-                    ,{0.5500, 0.2026, 0.4241, 0.544, 0.2924}
-                    ,{0.6000, 0.2456, 0.4833, 0.544, 0.2924}
-                    ,{0.6173, 0.2629, 0.5043, 0.544, 0.2924}
-                    ,{0.6768, 0.3329, 0.5891, 0.595, 0.3459}
-                    ,{0.7546, 0.4559, 0.7130, 0.642, 0.4067}
-                    ,{0.8125, 0.5971, 0.8152, 0.657, 0.4649}
-                    ,{0.8636, 0.7925, 0.9502, 0.655, 0.4997}
-                    ,{0.8800, 0.8694, 0.9595, 0.650, 0.5201}
-                    ,{0.9167, 1.0306, 0.9804, 0.653, 0.5658}
-                    ,{0.9500, 1.1766, 0.9993, 0.656, 0.6074}
-                    ,{1.0000, 1.3959, 1.0278, 0.659, 0.6697}
+                    {0.0000, 0.1073, 0.0000, 0.544, 0.4781}
+                    ,{0.0500, 0.1083, 0.0116, 0.544, 0.4781}
+                    ,{0.1000, 0.1116, 0.0329, 0.544, 0.4781}
+                    ,{0.1500, 0.1169, 0.0604, 0.544, 0.4781}
+                    ,{0.2000, 0.1247, 0.0930, 0.544, 0.4781}
+                    ,{0.2500, 0.1352, 0.1300, 0.544, 0.4781}
+                    ,{0.3000, 0.1488, 0.1709, 0.544, 0.4781}
+                    ,{0.3500, 0.1661, 0.2153, 0.544, 0.4781}
+                    ,{0.4000, 0.1874, 0.2631, 0.544, 0.4781}
+                    ,{0.4938, 0.2416, 0.4314, 0.700, 0.2548}
+                    ,{0.7411, 0.5180, 0.5133, 0.634, 0.5071}
+                    ,{0.9911, 1.2713, 1.0307, 0.658, 0.6069}
+                    ,{1.0000, 1.3005, 1.0492, 0.659, 0.6105}
                 };
 
-                //Start thresholds - discrete events the model branches on.
+                //Start
                 lightOffNg = 0.15;       //fuel introduced
                 selfSustNg = 0.52;       //starter cuts out
-                //Where the start fuel ramp reaches full and residual heat has faded. Raise it
-                //to hold fuel lean longer and peak cooler.
-                idleNg     = 0.679;
+                idleNg     = 0.553;      //ground idle
 
-                //Ng limiter - ngLimitMax min (ngLimitBase + ngLimitSlope * FAT).
-                ngLimitMax   = 1.05;
-                ngLimitBase  = 1.05;
+                //Ng limiter - ngLimitMax min (ngLimitBase + ngLimitSlope * FAT)
+                ngLimitMax   = 1.11;
+                ngLimitBase  = 1.11;
                 ngLimitSlope = 0.0;
             };
 
-            //Combustor - stations 3 -> 4.
+            //Combustor
             class Combustor {
-                fuelLhv             = 43000;    //kJ/kg - JP-8
+                fuelLhv             = 43000;    //kJ/kg
                 combustorEfficiency = 0.99;
 
-                maxTgt      = 843;       //deg C - TGT limiter, twin engine
-                maxTgtSe    = 843;       //deg C - TGT limiter, single engine
-                startTgt    = 927;       //deg C - the transient START limit, not the peak
-                startMinTgt = 80;        //deg C - below this before the power lever is moved
+                maxTgt      = 9999;      //TGT limiter, twin engine
+                maxTgtSe    = 9999;      //TGT limiter, single engine
+                startTgt    = 927;       //start limit
+                startMinTgt = 80;        //TGT required before the power lever is moved
 
-                //How violently an un-purged engine runs away, latched from TGT at the lever.
-                residualHeatGain = 0.003;
+                residualHeatGain = 0.003;   //un-purged start runaway
             };
 
-            //Compressor turbine - stations 4 -> 4.5. Drives the compressor, steps Ng; TGT is read here.
+            //Compressor turbine
             class CompressorTurbine {
                 turbineEfficiency = 0.88;
-                spoolInertia      = 5.0; //how fast Ng answers a torque change
+                spoolInertia      = 5.0;
             };
 
-            //The free turbine - stations 4.5 -> 5. Np is state with its own torque balance.
+            //Power turbine
             class PowerTurbine {
-                ptEfficiency  = 0.88;    //isentropic efficiency
-                ptInertia     = 0.60;    //the free turbine's own inertia
-                ptDrag        = 0.06;    //drag on a released turbine, as ptDrag * np^2
-                ptDragFloor   = 0.05;    //finishes the stop - windmilling only
+                ptEfficiency  = 0.88;
+                ptInertia     = 0.60;
+                ptDrag        = 0.06;    //released turbine drag, ptDrag * np^2
+                ptDragFloor   = 0.05;    //minimum released turbine drag
             };
 
-            //The ECU - what it schedules, and the ceilings it will not pass.
+            //Governor
             class Governor {
-                //Minimum fuel the power lever schedules.
-                fuelIdle = 0.521;        //settles Ng at 0.679
-                fuelFly  = 3.136;        //WIDE OPEN - the governor cuts back from here
+                fuelIdle = 0.403;        //fuel at IDLE
+                fuelFly  = 3.136;        //fuel at FLY
 
-                //Fuel metered at light-off as a fraction of idle fuel. Sets the start PEAK.
-                startFuelBase = 0.50;
+                startFuelBase = 0.50;    //light-off fuel, fraction of idle fuel
 
-                ffwdGain = 1.00;         //collective anticipation - the load demand spindle
+                ffwdGain = 1.00;         //collective anticipation
 
-                leverTravelTime = 15.0;   //seconds, idle to fly - the fuel ramp, Np and the lever animation
-                loadShareGain   = 8.0;   //how hard an engine below its matched partners trims up to them
+                leverTravelTime = 15.0;  //seconds, idle to fly
+                loadShareGain   = 8.0;   //load sharing trim rate
 
-                //Np governor, {kp, ki, kd, ki_clamp}.
-                pid[] = {80.0000, 40.0000, 0.0000, 0.0750};
+                pid[] = {80.0000, 40.0000, 0.0000, 0.0750};   //Np governor {kp, ki, kd, ki_clamp}
 
-                gate[] = {};             //nothing gates it - no systems modelled here
+                gate[] = {};
             };
 
-            //Air turbine or electric, and what it needs available before the spool turns.
-            //No systems are modelled here, so nothing gates it.
+            //Starter
             class Starter {
-                type   = "pneumatic";
-                torque    = 0.45;               //stalled, on the spool, normalised
-                runawayNg = 0.25;               //no torque left - where motoring settles
-                gate[] = {};
+                type      = "pneumatic";
+                torque    = 0.45;        //stalled torque
+                runawayNg = 0.25;        //where motoring settles
+                gate[]    = {};
             };
         };
         class Engine02 : Engine01 {

@@ -348,3 +348,62 @@ Every `TODO(MH47G)` in the pack:
   (a superset - driver-only aircraft unchanged, pylon racks matched as before). Guide updated.
   No flare magazine is loaded on the MH-47G in game, so its flare entry reads 0.
 - HOT stations and store removed (user) - numStations 0, numStores 0; the MH-47G has no pylons.
+
+### 2026-10-12 afternoon
+
+- Flown: casual pick-up fine. Pedal->collective mix paused (user).
+- dump.sqf (Core, uncommitted): turrets, pylons, presets and animation sources via
+  configProperties with inheritance - it missed inherited classes (the gun hide sources).
+- Turrets 7, 10, 11: seats.sqf could not board them (hoist / hanging ramp seats) - lower the ramp,
+  deploy the hoist and re-run seats.sqf.
+- CG fit: a 37,500 lb loading with the default kit (empty + kit + guns + 2 pilots + ammo + 3,224 kg
+  fuel) sits at station 313.3 in = Arma {0.014, -1.579, -1.279} (was -1.983). Refit + LCT tuned for
+  ALL altitudes in scratchpad (lct_tune_all.py, cfg_tune_all): converged (<=0.01 deg; 20k ft
+  130-150 kt short by 0.04-0.21). Copied to the pack 2026-10-12 (lctSchedule, lift/drag tables,
+  front fuselage drag 0.808; pack engine and nrLimits kept). At altitude the tuned columns run AFT
+  of the chart (20k ft 150 kt: -1.2 / -3.25 vs chart +4 / +4) - flight test.
+- Engine limits from the TM (user): PTIT bands 816 (30 min) / 854 (10 min) / 899 (2.5 min) /
+  932 (12 s) / 943; Ng 111%, ngMin 50%; Np 111.5%; TQ 100% dual / 123% single; oil 35-90 psi
+  normal (full scale 90 psi); Nr {0.97, 1.01, 1.06, 1.11}. Written. Open (user): maxTgt / maxTgtSe
+  limiter (suggested 899 / 932), maxNg / maxNp trips (maxNg scales the compressor map - leave for
+  the T55 gas model), Ng-dependent oil minimums (Core has one), hydraulic pressures (no systems yet).
+- Engine (2026-10-12): Ng-only limiting at 111% (ngLimitMax/Base 1.11, maxTgt 9999 - Core always runs a
+  TGT limiter, so it is set out of reach); maxNg 1.12. Core fix: Ng was clamped at 1.1 in
+  fn_gasTurbineCompressorTurbine (and the rig) - now the engine's maxNg (other packs all 1.10).
+  Spec: pressure ratio 9.32 (T55-L-714A published), mass flow 13.199 kg/s (user). Compressor map by
+  compressor_map.py from the 10-minute rating at its PTIT limit: 15 C, N1 1.110, T45 899, TQ 1.265 -
+  lands exactly; fuelIdle 0.401 (superseded - see the idle rebuild below). airflowTable trimmed to the user's
+  sea-level 10-minute torque curve (-40..+40 C): warm side exact; cold side fitted through noisy
+  runs (max Ng settles 1.108-1.113). Open: max-power Ng overshoots the 1.11 book limit (0 s);
+  hot-day max-power PTIT 910 (20 C) / 930 (30 C) / 947 (40 C) - past the 10-minute band and, at
+  40 C, the 943 never-exceed.
+- Overspeed trips (Core, user): Ng fly-weight trip is optional `ngOvrspdProt` (default maxNg, 0 = none -
+  the T55, Bo 105 and Tiger engines have no fly weights); Np trip `npOvrspdProt` (falls back to the old
+  `maxNp`, 0 = none) - trip check, engine display, rig, docs. Other packs resolve to their old trips.
+  MH-47G: ngOvrspdProt 0, npOvrspdProt 1.175 (the Allison's value - T55 figure wanted).
+- Full collective pull, SL 15 C, 37,500 lb, no Ng trip now: Ng hits the 1.12 ceiling then hunts 1.10-1.12
+  round the 111% limit, torque swings 108-170%, Nr droops to ~57%. The Ng limiter only reacts once
+  over the limit - proposed (awaiting design approval): make it anticipate the rate of approach.
+- Np overspeed protection 114.8% (user - the T55's only trip). Ng 83% at 100% Np/Nr flat pitch (user).
+- Ng limiter anticipator (Core + rig, user): the limiter acts on Ng 0.4 s ahead at its filtered rate
+  (GT_NG_LEAD, GT_NG_RATE_TAU, bmkhs_engNgPrev/Rate). Full pull: Ng stops at 111.0%, no overshoot, no
+  hunting (was 112% then +/-1% with torque 108-170%); Bo 105 at its limit: was Ng 104.4-105.6% /
+  torque 106-126%, now 105.0% / 116.3% - same mean.
+- Compressor map rebuilt: FLAT 15 C N1 0.830 T45 550 (assumed) TQ 0.19 + 10MIN 15 C 1.110 / 899 / 1.265 -
+  both land. airflowTable re-trimmed: every FAT exact. SL 15 C: flat pitch Ng 83.0% TQ 19% PTIT 550;
+  37,500 lb hover Ng 93.1% TQ 62% PTIT 798; 50,000 lb hover Ng 100.2% TQ 89.9% PTIT 867.
+  Hot-day max-power PTIT: 919 (20 C), 958 (30 C), 995 (40 C) - kept (user): the T55 has no TGT limiter,
+  so the pilot can pull past the limits and burn the engine; the book limits and damage handle it. A
+  hot-day re-trim to put the curve at 899 C needed airflow x1.27-1.67 and gave 157-193% when pulled
+  past - rejected.
+- Ground idle (MH-47G display, user): Ng 55.3%, TQ 15-16%, PTIT 445, Np 50.6%, Nr 49%. In game the pack
+  idled at Ng 71.0 / TQ 6 / PTIT 433 / Np-Nr 75; 45,500 lb hover at TQ 68% read PTIT 817 (30-min band).
+  Core tool compressor_map.py: low-end pressure ratio now scales the T700's in log terms on the
+  engine's own ratio (was a straight fraction - PR 0.55 at standstill, 1.5 at idle); a rating may
+  give its own compressor efficiency (6th column). Map rebuilt from IDLE 15 C 0.553 / 445 / power
+  0.0784 (15.5% at Np 50.6%) eff 0.70 + FLAT + 10MIN - all land. idleNg 0.553, fuelIdle 0.403,
+  airflowTable re-trimmed (every FAT exact). Rig SL 15 C: idle Ng 55.3 PTIT 445 TQ 7.8 Np/Nr 64;
+  TQ 69% PTIT 792 (was 819); 89% 841 (was 866); hot-day max PTIT 916 / 946 / 975.
+  Open: idle Np/Nr 64% vs 49% and TQ 7.8% vs 15.5% - Core rotor drag goes as Nr^2 (19% at 100% gives
+  4.6% at 49%); the real drivetrain loads ~3x that at idle. Needs a Core load term - user's design.
+  helisim_engine.hpp comments cut to section headers and term descriptions.
