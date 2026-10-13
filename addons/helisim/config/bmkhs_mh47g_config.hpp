@@ -1,14 +1,7 @@
-//MH-47G HeliSim configuration. Core reads this class.
-//
-//TODO(MH47G): every flight value below is the Bo 105's, as a flyable placeholder. Each
-//file says what in it is still the Bo 105's.
+//MH-47G HeliSim configuration
 
 class BMKHS_HeliSim {
-    //No systems modelled: no electrical, APU, hydraulics or drivetrain components, no
-    //cockpit controls. The aircraft starts cold and wakes on the first collective input.
-    useSystems = 0;
-
-    //How many engines. No hitpoints are declared, so this is where the count comes from.
+    useSystems = 0;     //1 = electrical, hydraulic and cockpit systems modelled
     numEngines = 2;
 
     #include "bmkhs_config\helisim_airfoils.hpp"

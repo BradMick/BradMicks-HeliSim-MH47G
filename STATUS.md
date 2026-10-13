@@ -407,3 +407,52 @@ Every `TODO(MH47G)` in the pack:
   Open: idle Np/Nr 64% vs 49% and TQ 7.8% vs 15.5% - Core rotor drag goes as Nr^2 (19% at 100% gives
   4.6% at 49%); the real drivetrain loads ~3x that at idle. Needs a Core load term - user's design.
   helisim_engine.hpp comments cut to section headers and term descriptions.
+- LCT schedule cut to 8 airspeed rows (0/40/60/80/100/120/140/150 kt, was 24): attitude sweep at SL,
+  10k and 20k ft within 0.1 deg of the full table (and of the target) at every speed.
+- Drivetrain drag (user): Core `drivetrainDrag` (aircraft level, simpleRotor config; constant torque
+  as a fraction of each engine's 100% torque, default 0) added to the rotor load in
+  fn_transmissionUpdate - only resists, a stopped drivetrain stays stopped until the drive
+  overcomes it. Rig mirrors it (transmission and gauge). The idle data fix it as constant: rotor
+  4.6% + drivetrain 14.4% at flat pitch 100% Nr gives 19% / 15.5% at 100% / 49% Nr. Scratch
+  (cfg_dd): drivetrainDrag 0.144, flat-pitch rotor drag 0.0130 -> 0.0031 - flat pitch 18.9% OK, but
+  at idle the rotor never breaks away: Core's shaft torque is power / 100%-Np torque (power share),
+  so idle delivered 7.8%, not the 15.5% the real engine makes at Np 50.6%.
+- Free turbine torque is power over shaft speed (user: "let's try it"): fn_turboShaftPowerTurbine and
+  the rig, capped at GT_PT_STALL_TQ 2.5 x 100% torque (no figure - placeholder). At 100% Np nothing
+  changes. MH-47G (drivetrainDrag 0.144, tables refit - Fit OK, front drag 0.808): idle Ng 55.3 TQ 15.6
+  Np/Nr 50.4 PTIT 445 (real 55.3 / 15.5 / 50.6 / 445); flat pitch 18.9%; attitude unchanged; SL torque
+  on the chart; at altitude cruise torque higher (20k 150 kt +7 pts) - drivetrain drag does not thin
+  with density. In the pack. Other packs, flight identical; idle Np/Nr up: Bo 105 37.8 -> 52.5,
+  EC665 48.8 -> 62.1, AH-64D 54.9 -> 67.1, H-60 52.7 -> 65.4 (TQ up 2-3 pts) - they need their own
+  drivetrainDrag / idle tuning against real idle data.
+- Core TODO.md: every aircraft, in sequence (Bo 105, EC665, AH-64D, H-60), gets all of the 1.4.0
+  variables - controlScheme, drivetrainDrag, position, ControlMixing collective, ngOvrspdProt /
+  npOvrspdProt - plus its idle refit for torque-over-speed and a compressor map rebuilt with its idle;
+  and every config file standardized to the MH-47G layout - grouped, comments pruned to term descriptions.
+- Config layout finished (2026-10-12): airfoils, flightControls, fuel, mass, misc, rotor and
+  bmkhs_mh47g_config.hpp grouped under section headers with a field header, comments cut to term
+  descriptions; values checked token for token against HEAD. helisim_fuselage.hpp / helisim_wings.hpp:
+  the generator (Core fm_generateAeroSurfacePoints.py) now writes the standard layout, placement in the
+  header; both rewritten in it, values unchanged. simpleRotor header trimmed to one line per field.
+  Note: Core reads the side panel's dragCoefTable by AoA deg, but its keys are 0-8000 like the front's
+  pressure altitude - looks wrong, not touched. Notes moved out of the
+  configs: flightControls gains are still the Bo 105's; helisim_rotor.hpp (blade element) is still the
+  Bo 105's; fuel lowFuelKg, a crossfeed position and aux pumps as crew switches not set; flare
+  magazine arm and the equipment masses marked estimate (door armour, dump pipe, door/window plugs,
+  skis) are estimates; turrets 7, 10, 11 seat arms unmeasured.
+- Rotor types (Core, foundation): PROPELLER 2 and PROPROTOR 3 in rotor.hpp; fn_simpleRotorVariables reads
+  "main", "tail", "propeller", "proprotor" (main when none); empty PROPELLER / PROPROTOR cases in
+  fn_simpleRotorControl's conventional switch; rig mirrors (rotor_type). Existing packs unchanged.
+  simpleRotor header lists every scheme, type and position; position moved to EVERY ROTOR.
+- Flight controls (Core, user design): FMC hold classes take alwaysOn (AttitudeHold / AltitudeHold
+  default 0, HeadingHold 1 - it already was). On: engages whenever it can, drops for force trim
+  (attitude), collective band / torque limit (altitude), the ground or its gate, re-engages on the new
+  reference (altitude near level, within engageFpm); keys and hold-modes-off can't engage or release
+  it; waits on FD hover (attitude) and FD altitude modes (altitude); no disengage notice. class
+  HydraulicBoost {gate[]} for aircraft with no FMC: crisp on every axis while bmkhs_hydBoostOn and the
+  gate hold, inputLagValue lag otherwise. Docs: fmc.hpp, AIRCRAFT_GUIDE. MH-47G: alwaysOn declared (attitude 0, altitude 0, heading 1); no boost - it has an FMC.
+- Beep trim (Core, user): four keys - cyclic forward/backward/left/right, no pedal beep - each press moves the cyclic
+  force trim position by beepTrimStep (flight controls, default 0.01). Nothing else. MH-47G 0.01.
+- NEXT (2026-10-12): flight controls refactor - Core docs/FMC_REFACTOR_PLAN.md (trim layer, hold reference
+  sources, recapture, airspeed sub-mode, hold state machine, FD + beep). Decisions recorded there; start at
+  step 1 (trim layer, beep as rate while held, Core honours bmkhs_fmcTrimOn). Bo 105 / EC665 holds as the AH-64D.
