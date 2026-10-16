@@ -41,11 +41,13 @@
         };
         class AttitudeHold {
             gate[]      = {};
+            subModes[]  = {"att"};
             posPitch[]  = {0.1500, 0.0070, 0.1200, 0.0070};   //position hold
             posRoll[]   = {0.0550, 0.0070, 0.0900, 0.0070};
             attPitch[]  = {0.0925, 0.0025, 0.0450, 0.0025};   //attitude hold
             attRoll[]   = {0.0400, 0.0015, 0.0180, 0.0015};
-            alwaysOn    = 0;
+            trimGain[]    = {10, 10};       //deg per unit of beep trim
+            alwaysOn    = 1;
         };
         class AltitudeHold {
             gate[]      = {};
@@ -55,6 +57,7 @@
         };
         class HeadingHold {
             gate[]      = {};
+            subModes[]  = {"hdg", "trn"};
             hdg[]       = {0.0750, 0.0200, 0.0050, 0.0200};   //heading
             trn[]       = {0.2500, 0.0600, 0.3000, 0.1500};   //turn coordination
             alwaysOn    = 1;
