@@ -1,10 +1,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Flight Controls //////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////
-//PID gains are {kp, ki, kd, ki_clamp}.
-//  alwaysOn         - hold engages whenever it can and re-engages after a pilot override; the
-//                     keys neither engage nor release it. 0 = key engaged.
-//  HydraulicBoost   - aircraft without an FMC only.
+//Field reference: \bmkhs_helisim\fmc.hpp. PID gains {kp, ki, kd, ki_clamp}.
 
     //Input
     inputLagValue     = 0.95;     //control input smoothing
@@ -22,12 +19,9 @@
 
     //Trim
     class Trim {
-        forceTrim   = 1;          //centering device (magnetic brakes)
         class Beep {
             gate[]  = {};
             rate[]  = {0.10, 0.10};           //{pitch, roll} trim travel per second
-            lag     = 0.1;                    //s, press to movement
-            moves[] = {"stick", "stick"};
         };
     };
 
@@ -35,31 +29,29 @@
     class FMC {
         class Sas {
             gate[]      = {};
-            pitch[]     = {0.1500, 0.0000, 0.0020, 0.0000};
-            roll[]      = {0.1000, 0.0000, 0.0020, 0.0000};
-            yaw[]       = {0.1500, 0.0250, 0.0060, 0.0500};
+            pitch[]     = {0.0026, 0.0000, 0.000035, 0.00};
+            roll[]      = {0.0017, 0.0000, 0.000035, 0.00};
+            yaw[]       = {0.0026, 0.00044, 0.00010, 2.9};
         };
         class AttitudeHold {
             gate[]      = {};
-            subModes[]  = {"att"};
-            posPitch[]  = {0.1500, 0.0070, 0.1200, 0.0070};   //position hold
-            posRoll[]   = {0.0550, 0.0070, 0.0900, 0.0070};
+            subModes[]  = {"att", "spd"};
+            alwaysOn    = 1;
+            spdAboveKts = 40;
             attPitch[]  = {0.0925, 0.0025, 0.0450, 0.0025};   //attitude hold
             attRoll[]   = {0.0400, 0.0015, 0.0180, 0.0015};
-            trimGain[]    = {10, 10};       //deg per unit of beep trim
-            alwaysOn    = 1;
+            spdPitch[]  = {0.5000, 0.0500, 0.0000, 10};      //airspeed hold - retune
+            trimGain[]  = {10, 10};         //deg per unit of beep trim
         };
         class AltitudeHold {
             gate[]      = {};
-            rad[]       = {0.0500, 0.0001, 0.0050, 0.0001};   //radar altitude
-            bar[]       = {0.0010, 0.0000, 0.0008, 0.0000};   //barometric altitude
-            alwaysOn    = 0;
+            rad[]       = {0.015, 0.00003, 0.0015, 0.00033};   //radar altitude
+            bar[]       = {0.0003, 0.0000, 0.00024, 0.00};   //barometric altitude
         };
         class HeadingHold {
             gate[]      = {};
             subModes[]  = {"hdg", "trn"};
             hdg[]       = {0.0750, 0.0200, 0.0050, 0.0200};   //heading
             trn[]       = {0.2500, 0.0600, 0.3000, 0.1500};   //turn coordination
-            alwaysOn    = 1;
         };
     };
