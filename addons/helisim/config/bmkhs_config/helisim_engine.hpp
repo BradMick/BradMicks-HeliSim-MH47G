@@ -123,7 +123,7 @@
                 leverTravelTime = 15.0;  //seconds, idle to fly
                 loadShareGain   = 8.0;   //load sharing trim rate
 
-                pid[] = {80.0000, 40.0000, 0.0000, 0.0750};   //Np governor {kp, ki, kd, ki_clamp}
+                pid[] = {80.0000, 40.0000, 0.0000, 3.0000};   //Np governor {kp, ki, kd, limit}
 
                 gate[] = {};
             };
