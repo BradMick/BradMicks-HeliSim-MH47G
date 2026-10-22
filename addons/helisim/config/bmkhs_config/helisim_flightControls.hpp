@@ -51,7 +51,9 @@
         class HeadingHold {
             gate[]      = {};
             subModes[]  = {"hdg", "trn"};
+            trnEnterBankDeg = 0;
+            trnExit[]   = {1.5, 1.5, 0};
             hdg[]       = {0.0750, 0.0200, 0.0050, 0.1};      //heading
-            trn[]       = {0.2500, 0.0600, 0.3000, 0.009};    //turn coordination
+            trn[]       = {0.2500, 0.0600, 0.3000, 0.1};      //turn coordination
         };
     };
