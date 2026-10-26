@@ -46,7 +46,7 @@
         class AltitudeHold {
             gate[]      = {};
             rad[]       = {0.015, 0.00003, 0.0015, 0.05};      //radar altitude
-            bar[]       = {0.0003, 0.0000, 0.00024, 0.00};   //barometric altitude
+            bar[]       = {0.015, 0.00003, 0.0015, 0.05};   //barometric altitude
             beep[]      = {1, 3, 3, 0};                      //ft per tap, ft/s held
         };
         class HeadingHold {
