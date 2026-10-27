@@ -57,16 +57,19 @@
                 };
 
                 //{Ng / maxNg, pressure ratio, airflow, efficiency, compressor turbine expansion}
+                //Rows below the first fitted row rebuilt by compressor_map.py (Core 1.4.2.0) - the turbine
+                //takes its share of each row's own pressure ratio, so the rotor turns during a start.
                 compressorMap[] = {
-                    {0.0000, 0.1073, 0.0000, 0.544, 0.4781}
-                    ,{0.0500, 0.1083, 0.0116, 0.544, 0.4781}
-                    ,{0.1000, 0.1116, 0.0329, 0.544, 0.4781}
-                    ,{0.1500, 0.1169, 0.0604, 0.544, 0.4781}
-                    ,{0.2000, 0.1247, 0.0930, 0.544, 0.4781}
-                    ,{0.2500, 0.1352, 0.1300, 0.544, 0.4781}
-                    ,{0.3000, 0.1488, 0.1709, 0.544, 0.4781}
-                    ,{0.3500, 0.1661, 0.2153, 0.544, 0.4781}
-                    ,{0.4000, 0.1874, 0.2631, 0.544, 0.4781}
+                    {0.0000, 0.1073, 0.0000, 0.544, 0.0000}
+                    ,{0.0500, 0.1083, 0.0116, 0.544, 0.0037}
+                    ,{0.1000, 0.1116, 0.0329, 0.544, 0.0158}
+                    ,{0.1500, 0.1169, 0.0604, 0.544, 0.0348}
+                    ,{0.2000, 0.1247, 0.0930, 0.544, 0.0610}
+                    ,{0.2500, 0.1352, 0.1300, 0.544, 0.0938}
+                    ,{0.3000, 0.1488, 0.1709, 0.544, 0.1326}
+                    ,{0.3500, 0.1661, 0.2153, 0.544, 0.1770}
+                    ,{0.4000, 0.1874, 0.2631, 0.544, 0.2261}
+                    ,{0.4500, 0.2137, 0.3139, 0.544, 0.2792}
                     ,{0.4938, 0.2416, 0.4314, 0.700, 0.2548}
                     ,{0.7411, 0.5180, 0.5133, 0.634, 0.5071}
                     ,{0.9911, 1.2713, 1.0307, 0.658, 0.6069}
@@ -116,7 +119,7 @@
                 fuelIdle = 0.403;        //fuel at IDLE
                 fuelFly  = 3.136;        //fuel at FLY
 
-                startFuelBase = 0.50;    //light-off fuel, fraction of idle fuel
+                startFuelBase = 0.06;    //start mirrors the AH-64D: lever IDLE at 7 s, 52% in ~20-25 s, peak ~620-660 C
 
                 ffwdGain = 1.00;         //collective anticipation
 
@@ -132,7 +135,7 @@
             class Starter {
                 type      = "pneumatic";
                 torque    = 0.45;        //stalled torque
-                runawayNg = 0.25;        //where motoring settles
+                motoringNg = 0.25;       //starter alone, no fuel
                 gate[]    = {};
             };
         };
